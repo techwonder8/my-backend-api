@@ -1,31 +1,45 @@
-# aws-services.yml
+name: Deploy AWS Services
 
-project: my-backend-api
-description: Infrastructure as Code for AWS services used in the backend API project.
+on:
+  push:
+    branches:
+      - main
 
-aws_region: us-east-1
-aws_account_id: 610229897684
+jobs:
+  deploy:
+    name: Deploy AWS Infrastructure
+    runs-on: ubuntu-latest
 
-services:
-  s3:
-    description: Stores static assets like resumes or documents.
-    bucket_name: shirinresume
-    arn: arn:aws:s3:::shirinresume
+    env:
+      AWS_REGION: us-east-1
 
-  acm:
-    description: TLS/SSL certificate for HTTPS secure communication.
-    certificate_arn: arn:aws:acm:us-east-1:610229897684:certificate/81dcfc27-c159-4fd0-a7cb-2b5e47fde4bc
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-  route53:
-    description: DNS management for domain routing.
-    status: active
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-  dynamodb:
-    description: Stores visitor counter data.
-    table_name: shirintechvisitorcounter
-    arn: arn:aws:dynamodb:us-east-1:610229897684:table/shirintechvisitorcounter
+      - name: Deploy S3 Bucket
+        run: |
+          aws s3api create-bucket --bucket shirinresume --region $AWS_REGION --create-bucket-configuration LocationConstraint=$AWS_REGION || echo "Bucket may already exist."
 
-  lambda:
-    description: Handles visitor count logic via serverless function.
-    function_name: shirinvisitorcount
-    arn: arn:aws:lambda:us-east-1:610229897684:function:shirinvisitorcount
+      - name: Describe ACM Certificate
+        run: |
+          aws acm describe-certificate --certificate-arn arn:aws:acm:us-east-1:610229897684:certificate/81dcfc27-c159-4fd0-a7cb-2b5e47fde4bc || echo "ACM Certificate not found."
+
+      - name: Describe DynamoDB Table
+        run: |
+          aws dynamodb describe-table --table-name shirintechvisitorcounter || echo "DynamoDB table not found."
+
+      - name: Check Lambda Function
+        run: |
+          aws lambda get-function --function-name shirinvisitorcount || echo "Lambda function not found."
+
+      - name: Check Route 53 Hosted Zones
+        run: |
+          aws route53 list-hosted-zones || echo "No hosted zones found."
